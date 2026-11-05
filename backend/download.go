@@ -49,6 +49,7 @@ func Download(c *Client, lendID, downloadDir, acsmDir, title, authors string) (*
 	base := safeName(title, authors, lendID)
 
 	var acsm []byte
+	sawDRMFile := false
 	for _, u := range []string{lic.EPUBURL, lic.PDFURL} {
 		if u == "" || u == lic.ACSMURL {
 			continue
@@ -64,6 +65,8 @@ func Download(c *Client, lendID, downloadDir, acsmDir, title, authors string) (*
 			return save(downloadDir, base+".pdf", data)
 		case kindACSM:
 			acsm = data
+		case kindDRMEPUB, kindDRMPDF:
+			sawDRMFile = true
 		}
 	}
 
@@ -77,12 +80,19 @@ func Download(c *Client, lendID, downloadDir, acsmDir, title, authors string) (*
 			return save(downloadDir, base+".epub", data)
 		case kindPDF:
 			return save(downloadDir, base+".pdf", data)
-		default:
+		case kindACSM:
 			acsm = data
+		case kindDRMEPUB, kindDRMPDF:
+			sawDRMFile = true
+		default:
+			return &DownloadResult{OK: false, Message: "Die Download-Datei hat ein unbekanntes Format und wurde nicht gespeichert."}, nil
 		}
 	}
 
 	if acsm == nil {
+		if sawDRMFile {
+			return drmFileResult(), nil
+		}
 		return &DownloadResult{OK: false, Message: "Für diese Ausleihe wurde keine Download-Datei gefunden."}, nil
 	}
 	if err := os.MkdirAll(acsmDir, 0o700); err != nil {
@@ -100,6 +110,19 @@ func Download(c *Client, lendID, downloadDir, acsmDir, title, authors string) (*
 			"Die Lizenzdatei (.acsm) wurde gespeichert: " + p +
 			" — sie kann mit Adobe Digital Editions oder einem anderen Adobe-kompatiblen Reader geöffnet werden.",
 	}, nil
+}
+
+// drmFileResult is returned when Onleihe delivered an already Adobe-DRM-encrypted
+// EPUB/PDF instead of an .acsm licence. Such a file is bound to an Adobe ID and
+// is not useful on its own, so nothing is saved.
+func drmFileResult() *DownloadResult {
+	return &DownloadResult{
+		OK:  false,
+		DRM: true,
+		Message: "Dieser Titel ist mit Adobe-DRM geschützt und kann von KOReader nicht geöffnet werden. " +
+			"Onleihe hat keine .acsm-Lizenzdatei geliefert; bitte den Titel über die Onleihe-Website " +
+			"mit Adobe Digital Editions oder einem anderen Adobe-kompatiblen Reader herunterladen.",
+	}
 }
 
 func save(dir, name string, data []byte) (*DownloadResult, error) {
