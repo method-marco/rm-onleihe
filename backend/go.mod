@@ -1,3 +1,3 @@
-module github.com/OWNER/rm-onleihe/backend
+module github.com/method-marco/rm-onleihe/backend
 
 go 1.22
