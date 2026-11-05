@@ -1,0 +1,42 @@
+# Vellum package for rm-onleihe.
+# Copy this directory to packages/onleihe/ in https://github.com/vellum-dev/vellum,
+# then run ./scripts/update-checksums.sh onleihe and ./scripts/lint-packages.sh onleihe.
+maintainer="YOUR NAME <you@example.com>"
+pkgname=onleihe
+pkgver=0.1.0
+pkgrel=0
+upstream_author="GITHUB_USER"
+category="utilities"
+pkgdesc="Borrow e-books from your library's Onleihe and read them in KOReader"
+url="https://github.com/$upstream_author/rm-onleihe"
+arch="aarch64 armv7"
+license="MIT"
+depends="appload"
+readmeurl="https://raw.githubusercontent.com/$upstream_author/rm-onleihe/v$pkgver/README.md"
+source="
+https://github.com/$upstream_author/rm-onleihe/releases/download/v$pkgver/rm-onleihe-aarch64.tar.gz
+https://github.com/$upstream_author/rm-onleihe/releases/download/v$pkgver/rm-onleihe-armv7.tar.gz
+"
+
+unpack() {
+	case "$CARCH" in
+	aarch64) tar -xzf "$srcdir"/rm-onleihe-aarch64.tar.gz -C "$srcdir" ;;
+	armv7) tar -xzf "$srcdir"/rm-onleihe-armv7.tar.gz -C "$srcdir" ;;
+	esac
+}
+
+package() {
+	_dest="$pkgdir"/home/root/xovi/exthome/appload/rm-onleihe
+	install -Dm644 "$srcdir"/rm-onleihe/manifest.json "$_dest"/manifest.json
+	install -Dm644 "$srcdir"/rm-onleihe/icon.png "$_dest"/icon.png
+	install -Dm644 "$srcdir"/rm-onleihe/resources.rcc "$_dest"/resources.rcc
+	install -Dm755 "$srcdir"/rm-onleihe/backend/entry "$_dest"/backend/entry
+
+	install -Dm644 "$srcdir"/rm-onleihe/LICENSE \
+		"$pkgdir"/home/root/.vellum/licenses/$pkgname/LICENSE
+	echo "https://github.com/$upstream_author/rm-onleihe/archive/v$pkgver.tar.gz" > \
+		"$pkgdir"/home/root/.vellum/licenses/$pkgname/SOURCES
+}
+
+sha512sums='
+'
