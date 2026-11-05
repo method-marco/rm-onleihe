@@ -3,7 +3,7 @@
 # then run ./scripts/update-checksums.sh onleihe and ./scripts/lint-packages.sh onleihe.
 maintainer="YOUR NAME <you@example.com>"
 pkgname=onleihe
-pkgver=0.2.1
+pkgver=0.2.2
 pkgrel=0
 upstream_author="method-marco"
 category="utilities"

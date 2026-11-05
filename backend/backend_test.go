@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"syscall"
 	"testing"
 )
@@ -148,5 +150,30 @@ func TestDetectDRM(t *testing.T) {
 		if got := detectDRM(c.p); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+func TestLibrariesPlainArray(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/management/v1/auth/domains":
+			w.Write([]byte(`[{"host":"x.onleihe.de","onleiheId":"O1","onleiheName":"X","libraryId":null,"libraryName":null}]`))
+		case "/user-application/v2/auth/libraries":
+			w.Write([]byte(`{"page":1,"totalPages":1,"content":[{"id":"L1","onleiheId":"O1","name":"Stadtbibliothek","city":"Bern"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	old := apiBase
+	apiBase = srv.URL
+	defer func() { apiBase = old }()
+
+	libs, err := NewClient("x.onleihe.de").Libraries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(libs) != 1 || libs[0].LibraryID != "L1" || libs[0].OnleiheID != "O1" || libs[0].City != "Bern" {
+		t.Fatalf("unexpected %+v", libs)
 	}
 }

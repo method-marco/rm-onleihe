@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const apiBase = "https://api.onleihe.de"
+var apiBase = "https://api.onleihe.de" // var so tests can point it at a fake server
 
 var ErrAuth = errors.New("not logged in")
 
@@ -167,7 +167,12 @@ func (c *Client) Libraries() ([]Library, error) {
 	}
 	var libs []Library
 	var onleiheIDs []string
-	for _, m := range asList(get(p, "content")) {
+	// The endpoint returns a plain JSON array; older responses wrapped it in "content".
+	domains := asList(get(p, "content"))
+	if domains == nil {
+		domains = asList(p)
+	}
+	for _, m := range domains {
 		l := Library{
 			OnleiheID:   str(get(m, "onleiheId")),
 			OnleiheName: str(get(m, "onleiheName")),
