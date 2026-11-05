@@ -23,12 +23,17 @@ var apiBase = "https://api.onleihe.de" // var so tests can point it at a fake se
 
 var ErrAuth = errors.New("not logged in")
 
+// ErrSessionExpired means the session could not be renewed; the user has to
+// enter the password again. The selected library is kept.
+var ErrSessionExpired = errors.New("session expired")
+
 type Session struct {
 	AccessToken  string `json:"accessToken,omitempty"`
 	RefreshToken string `json:"refreshToken,omitempty"`
 	TokenType    string `json:"tokenType,omitempty"`
 	UserID       string `json:"userId,omitempty"`
 	ProfileID    string `json:"profileId,omitempty"`
+	ExpiresAt    int64  `json:"expiresAt,omitempty"` // access token expiry (unix seconds, from JWT "exp")
 }
 
 type Client struct {
@@ -94,6 +99,13 @@ func (c *Client) do(method, path string, params url.Values, body any, auth bool)
 }
 
 func (c *Client) doRaw(method, path string, params url.Values, body any, auth, retry bool) ([]byte, error) {
+	// Renew the session shortly before the access token expires.
+	if auth && retry && c.Session.AccessToken != "" && c.Session.ExpiresAt != 0 &&
+		time.Now().Unix()+30 >= c.Session.ExpiresAt {
+		if err := c.Refresh(); err != nil {
+			log.Printf("proactive token refresh failed: %v", err)
+		}
+	}
 	u := path
 	if !strings.HasPrefix(path, "http") {
 		u = apiBase + path
@@ -136,10 +148,16 @@ func (c *Client) doRaw(method, path string, params url.Values, body any, auth, r
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode == http.StatusUnauthorized && auth && retry && c.Session.RefreshToken != "" {
-		if rerr := c.Refresh(); rerr == nil {
-			return c.doRaw(method, path, params, body, auth, false)
+	if resp.StatusCode == http.StatusUnauthorized && auth && c.Session.AccessToken != "" {
+		if retry {
+			if rerr := c.Refresh(); rerr == nil {
+				return c.doRaw(method, path, params, body, auth, false)
+			} else {
+				log.Printf("token refresh after 401 failed: %v", rerr)
+			}
 		}
+		c.expireSession()
+		return nil, ErrSessionExpired
 	}
 	if resp.StatusCode >= 400 {
 		return nil, &APIError{Status: resp.StatusCode, Body: string(data)}
@@ -246,7 +264,12 @@ func (c *Client) Login(username, password string) error {
 }
 
 func (c *Client) Refresh() error {
+	// Like the Onleihe web frontend, fall back to the access token when the
+	// login response did not include a separate refresh token.
 	tok := c.Session.RefreshToken
+	if tok == "" {
+		tok = c.Session.AccessToken
+	}
 	if tok == "" {
 		return ErrAuth
 	}
@@ -269,6 +292,15 @@ func (c *Client) Logout() {
 	}
 }
 
+// expireSession drops the tokens but keeps the selected Onleihe and library,
+// so logging in again only needs the password.
+func (c *Client) expireSession() {
+	c.Session = Session{}
+	if c.OnSession != nil {
+		c.OnSession()
+	}
+}
+
 func (c *Client) setSession(p any, prev Session) {
 	s := Session{
 		AccessToken:  firstStr(get(p, "accessToken"), get(p, "access_token"), get(p, "token")),
@@ -278,6 +310,9 @@ func (c *Client) setSession(p any, prev Session) {
 	claims := jwtClaims(s.AccessToken)
 	s.UserID = firstStr(get(p, "userId"), get(p, "uid"), claims["uid"])
 	s.ProfileID = firstStr(get(p, "profileId"), claims["pid"])
+	if exp, ok := claims["exp"].(float64); ok {
+		s.ExpiresAt = int64(exp)
+	}
 	if s.RefreshToken == "" {
 		s.RefreshToken = prev.RefreshToken
 	}
@@ -728,4 +763,6 @@ func firstAny(vs ...any) any {
 	return nil
 }
 
-func isHTTP(s string) bool { return strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "http://") }
+func isHTTP(s string) bool {
+	return strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "http://")
+}

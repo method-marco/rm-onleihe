@@ -54,6 +54,14 @@ Rectangle {
                 const hideChanged = !!root.appState.hideDrm !== !!d.hideDrm
                 root.appState = d
                 if (hideChanged && root.lastItems.length > 0) fillSearch()
+                // Logged out or session expired: keep the saved library so only
+                // the password has to be entered again.
+                if (!d.loggedIn && d.libraryId && root.selectedLibrary === null) {
+                    root.pendingHost = d.host || ""
+                    root.selectedLibrary = { onleiheId: d.onleiheId, libraryId: d.libraryId,
+                                             libraryName: d.libraryName || "" }
+                }
+                if (d.loggedIn) passField.text = ""
                 break
             }
             case 102: root.message = "⚠ " + d.message; break
