@@ -26,6 +26,10 @@ Adobe Digital Editions or another Adobe-licensed reader.
 
 - Pick your Onleihe (e.g. `niedersachsen.onleihe.de`) and library, and log in with your library card
 - Search the catalogue and borrow titles (optional custom lending period)
+- Each search hit is marked "DRM-frei", "Adobe-DRM" or "DRM: unbekannt"; the "DRM ausblenden"
+  toggle hides titles known to have Adobe DRM. Detection is best effort from catalogue metadata;
+  titles with unknown status are always shown. Run with `RM_ONLEIHE_DEBUG=1` to log the raw
+  metadata of titles whose status could not be determined.
 - List your current loans and (re-)download them
 - DRM-free files go straight into a folder you open in KOReader (default `/home/root/onleihe`)
 - E-ink-friendly UI (black/white, no animations, large touch targets)

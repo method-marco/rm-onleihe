@@ -38,6 +38,8 @@ Rectangle {
     property string lastQuery: ""
     property int searchFrom: 0
     property int searchTotal: 0
+    property var lastItems: []
+    property string lastSearchMessage: ""
 
     function send(type, obj) { backend.sendMessage(type, JSON.stringify(obj || {})) }
 
@@ -48,13 +50,18 @@ Rectangle {
             let d = {}
             try { d = contents ? JSON.parse(contents) : {} } catch (e) { return }
             switch (type) {
-            case 101: root.appState = d; break
+            case 101: {
+                const hideChanged = !!root.appState.hideDrm !== !!d.hideDrm
+                root.appState = d
+                if (hideChanged && root.lastItems.length > 0) fillSearch()
+                break
+            }
             case 102: root.message = "⚠ " + d.message; break
             case 103:
-                searchModel.clear()
-                for (const it of d.items || []) searchModel.append(flatten(it))
+                root.lastItems = d.items || []
                 root.searchFrom = d.from; root.searchTotal = d.total
-                root.message = d.total + " Treffer für „" + d.query + "“"
+                root.lastSearchMessage = d.total + " Treffer für „" + d.query + "“"
+                fillSearch()
                 break
             case 104:
                 loansModel.clear()
@@ -79,8 +86,27 @@ Rectangle {
             productId: it.productId || "", title: it.title || "(ohne Titel)",
             subtitle: it.subtitle || "", authors: it.authors || "",
             mediaType: it.mediaType || "", lendId: it.lendId || "",
-            availability: it.availability || "", canLend: !!it.canLend
+            availability: it.availability || "", canLend: !!it.canLend,
+            drm: it.drm || ""
         }
+    }
+
+    // Fills the result list from the last search, hiding titles known to
+    // have Adobe DRM if that setting is on. Titles with unknown status stay.
+    function fillSearch() {
+        searchModel.clear()
+        let hidden = 0
+        for (const it of lastItems) {
+            if (appState.hideDrm && it.drm === "drm") { hidden++; continue }
+            searchModel.append(flatten(it))
+        }
+        root.message = lastSearchMessage + (hidden > 0 ? " (" + hidden + " mit DRM ausgeblendet)" : "")
+    }
+
+    function drmLabel(drm) {
+        if (drm === "free") return "DRM-frei ✓ KOReader"
+        if (drm === "drm") return "🔒 Adobe-DRM"
+        return "DRM: unbekannt"
     }
 
     ListModel { id: searchModel }
@@ -227,6 +253,11 @@ Rectangle {
                     onAccepted: doSearch(0)
                 }
                 EButton { text: "Suchen"; onClicked: doSearch(0) }
+                EButton {
+                    text: "DRM ausblenden"
+                    active: !!appState.hideDrm
+                    onClicked: send(reqSettings, { hideDrm: !appState.hideDrm })
+                }
             }
 
             ListView {
@@ -306,7 +337,7 @@ Rectangle {
                     Text { visible: model.subtitle !== ""; text: model.subtitle; font.pixelSize: 24; wrapMode: Text.Wrap; Layout.fillWidth: true }
                     Text { text: model.authors; font.pixelSize: 26; Layout.fillWidth: true; elide: Text.ElideRight }
                     Text {
-                        text: [model.mediaType, model.availability].filter(s => s).join(" · ")
+                        text: [model.mediaType, drmLabel(model.drm), model.availability].filter(s => s).join(" · ")
                         font.pixelSize: 22; color: "#444"; wrapMode: Text.Wrap; Layout.fillWidth: true
                     }
                 }
