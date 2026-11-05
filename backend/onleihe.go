@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -330,6 +331,7 @@ type Media struct {
 	Availability string   `json:"availability,omitempty"`
 	Actions      []string `json:"actions,omitempty"`
 	CanLend      bool     `json:"canLend"`
+	DRM          string   `json:"drm"` // "free", "drm" or "" (unknown)
 }
 
 type SearchPage struct {
@@ -436,6 +438,15 @@ func parseMedia(p any) Media {
 		Authors:   strings.Join(authors, ", "),
 		MediaType: str(get(prod, "mediaType")),
 		LendID:    str(get(p, "userInformation", "lend", "lendId")),
+		DRM:       detectDRM(prod),
+	}
+	if m.DRM == drmUnknown {
+		m.DRM = detectDRM(get(p, "userInformation"))
+	}
+	if m.DRM == drmUnknown && debug {
+		if b, err := json.Marshal(p); err == nil {
+			log.Printf("drm unknown for %q: %s", m.Title, b)
+		}
 	}
 	for _, a := range asList(get(p, "userAction")) {
 		s := str(a)

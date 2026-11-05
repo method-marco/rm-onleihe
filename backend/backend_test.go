@@ -125,3 +125,28 @@ func TestSafeName(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestDetectDRM(t *testing.T) {
+	cases := []struct {
+		name string
+		p    any
+		want string
+	}{
+		{"adobe string", map[string]any{"drmType": "ADOBE_ACS"}, drmAdobe},
+		{"watermark string", map[string]any{"copyProtection": "WATERMARK"}, drmFree},
+		{"none", map[string]any{"drm": "NONE"}, drmFree},
+		{"bool protected", map[string]any{"isDrmProtected": true}, drmAdobe},
+		{"bool not protected", map[string]any{"isDrmProtected": false}, drmFree},
+		{"nested formats", map[string]any{"formats": []any{
+			map[string]any{"mimeType": "EPUB", "drmSystem": "ACS"},
+		}}, drmAdobe},
+		{"drm class", map[string]any{"x": map[string]any{"_class": "de.divibib.AcsDrmInformation"}}, drmAdobe},
+		{"mixed wins drm", map[string]any{"watermark": "yes", "drmSystem": "ADOBE"}, drmAdobe},
+		{"no info", map[string]any{"title": "Der Process", "mediaType": "EBOOK"}, drmUnknown},
+	}
+	for _, c := range cases {
+		if got := detectDRM(c.p); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}

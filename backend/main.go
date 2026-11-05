@@ -14,6 +14,9 @@ import (
 
 var version = "dev"
 
+// debug enables extra logging (e.g. raw product JSON when DRM status is unknown).
+var debug = os.Getenv("RM_ONLEIHE_DEBUG") != ""
+
 // Message types frontend -> backend.
 const (
 	reqInit     = 1
@@ -48,6 +51,7 @@ type Config struct {
 	Session     Session `json:"session"`
 	DownloadDir string  `json:"downloadDir"`
 	LendDays    int     `json:"lendDays"` // 0 = library default
+	HideDRM     bool    `json:"hideDrm"`  // hide titles known to have Adobe DRM in search
 }
 
 type App struct {
@@ -177,6 +181,7 @@ func (a *App) sendState() {
 		"username":    a.cfg.Username,
 		"downloadDir": a.cfg.DownloadDir,
 		"lendDays":    a.cfg.LendDays,
+		"hideDrm":     a.cfg.HideDRM,
 	})
 }
 
@@ -237,6 +242,9 @@ func (a *App) handle(typ int32, contents string) {
 		}
 		if v, ok := req["lendDays"].(float64); ok && v >= 0 {
 			a.cfg.LendDays = int(v)
+		}
+		if v, ok := req["hideDrm"].(bool); ok {
+			a.cfg.HideDRM = v
 		}
 		a.saveConfig()
 		a.sendState()
