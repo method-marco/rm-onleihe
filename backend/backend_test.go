@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"syscall"
@@ -175,5 +177,97 @@ func TestLibrariesPlainArray(t *testing.T) {
 	}
 	if len(libs) != 1 || libs[0].LibraryID != "L1" || libs[0].OnleiheID != "O1" || libs[0].City != "Bern" {
 		t.Fatalf("unexpected %+v", libs)
+	}
+}
+
+func fakeJWT(claims string) string {
+	return "h." + base64.RawURLEncoding.EncodeToString([]byte(claims)) + ".s"
+}
+
+// An expired access token without a refresh token is renewed with the access
+// token itself, and the request is retried.
+func TestRefreshWithAccessTokenOn401(t *testing.T) {
+	fresh := fakeJWT(`{"uid":"u-1","exp":9999999999}`)
+	var refreshBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user-application/v1/auth/refresh":
+			b, _ := io.ReadAll(r.Body)
+			refreshBody = string(b)
+			w.Write([]byte(`{"accessToken":"` + fresh + `"}`))
+		case "/thing":
+			if r.Header.Get("Authorization") != "Bearer "+fresh {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.Write([]byte(`{"ok":true}`))
+		}
+	}))
+	defer srv.Close()
+	old := apiBase
+	apiBase = srv.URL
+	defer func() { apiBase = old }()
+
+	c := NewClient("x.onleihe.de")
+	c.Session = Session{AccessToken: "old", UserID: "u-1"}
+	if _, err := c.do("GET", "/thing", nil, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if refreshBody != `{"token":"old"}` {
+		t.Fatalf("refresh body %q", refreshBody)
+	}
+	if c.Session.AccessToken != fresh || c.Session.ExpiresAt != 9999999999 {
+		t.Fatalf("session not updated: %+v", c.Session)
+	}
+}
+
+// If renewing fails, the session is dropped but the library is kept.
+func TestSessionExpiredKeepsLibrary(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	old := apiBase
+	apiBase = srv.URL
+	defer func() { apiBase = old }()
+
+	c := NewClient("x.onleihe.de")
+	c.OnleiheID, c.LibraryID = "O1", "L1"
+	c.Session = Session{AccessToken: "old", RefreshToken: "r", UserID: "u-1"}
+	saved := 0
+	c.OnSession = func() { saved++ }
+	_, err := c.do("GET", "/thing", nil, nil, true)
+	if !errors.Is(err, ErrSessionExpired) {
+		t.Fatalf("got %v", err)
+	}
+	if c.LoggedIn() || c.OnleiheID != "O1" || c.LibraryID != "L1" || saved == 0 {
+		t.Fatalf("unexpected state: %+v %s %s saved=%d", c.Session, c.OnleiheID, c.LibraryID, saved)
+	}
+}
+
+// A token that is about to expire is renewed before the request is sent.
+func TestProactiveRefresh(t *testing.T) {
+	fresh := fakeJWT(`{"uid":"u-1","exp":9999999999}`)
+	refreshed := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/user-application/v1/auth/refresh" {
+			refreshed = true
+			w.Write([]byte(`{"accessToken":"` + fresh + `"}`))
+			return
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	old := apiBase
+	apiBase = srv.URL
+	defer func() { apiBase = old }()
+
+	c := NewClient("x.onleihe.de")
+	c.Session = Session{AccessToken: "old", RefreshToken: "r", UserID: "u-1", ExpiresAt: 1}
+	if _, err := c.do("GET", "/thing", nil, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed || c.Session.AccessToken != fresh {
+		t.Fatalf("not refreshed: %+v", c.Session)
 	}
 }

@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -164,7 +165,11 @@ func (a *App) send(typ int32, v any) {
 
 func (a *App) fail(err error) {
 	msg := err.Error()
-	if err == ErrAuth {
+	switch {
+	case errors.Is(err, ErrSessionExpired):
+		msg = "Sitzung abgelaufen. Bitte Passwort erneut eingeben."
+		defer a.sendState() // switch the UI to the (pre-filled) login screen
+	case errors.Is(err, ErrAuth):
 		msg = "Bitte zuerst anmelden. / Please log in first."
 	}
 	a.send(resError, map[string]string{"message": msg})
@@ -177,6 +182,8 @@ func (a *App) sendState() {
 		"version":     version,
 		"loggedIn":    a.client.LoggedIn(),
 		"host":        a.cfg.Host,
+		"onleiheId":   a.cfg.OnleiheID,
+		"libraryId":   a.cfg.LibraryID,
 		"libraryName": a.cfg.LibraryName,
 		"username":    a.cfg.Username,
 		"downloadDir": a.cfg.DownloadDir,
