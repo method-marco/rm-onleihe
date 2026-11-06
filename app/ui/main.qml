@@ -81,7 +81,7 @@ Rectangle {
                 for (const it of d.items || []) loansModel.append(flatten(it))
                 root.message = (d.items || []).length + " aktuelle Ausleihen"
                 break
-            case 105: root.message = (d.ok ? "✓ " : (d.drm ? "🔒 " : "⚠ ")) + d.message; break
+            case 105: root.message = (d.ok ? "✓ " : "⚠ ") + d.message; break
             case 106: root.busyText = d.busy ? d.text : ""; break
             case 107:
                 root.pendingHost = d.host
@@ -118,7 +118,7 @@ Rectangle {
 
     function drmLabel(drm) {
         if (drm === "free") return "DRM-frei ✓ KOReader"
-        if (drm === "drm") return "🔒 Adobe-DRM"
+        if (drm === "drm") return "⚠ Adobe-DRM"
         return "DRM: unbekannt"
     }
 
@@ -180,7 +180,7 @@ Rectangle {
         Text {
             Layout.fillWidth: true
             visible: text !== ""
-            text: busyText !== "" ? "⏳ " + busyText : message
+            text: busyText !== "" ? "… " + busyText : message
             wrapMode: Text.Wrap; font.pixelSize: 26
         }
 
