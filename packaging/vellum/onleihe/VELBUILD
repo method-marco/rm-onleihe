@@ -44,7 +44,6 @@ build() {
 package() {
 	_appdir="$pkgdir"/home/root/xovi/exthome/appload/rm-onleihe
 
-	cd "$builddir"
 	install -Dm755 build/backend/entry "$_appdir"/backend/entry
 	install -Dm644 build/resources.rcc "$_appdir"/resources.rcc
 	install -Dm644 app/manifest.json "$_appdir"/manifest.json
@@ -64,5 +63,5 @@ postdeinstall() {
 	fi
 }
 
-sha512sums='
-'
+sha512sums='88a4c3c577db9c5f9dda0600716f57234b215e79d1060aa1513f1496fb8940a5079fdeb595d64cdabfb9a02c0a47290fb2efddc6c58e4c84a359e13e52433bd6
+onleihe-0.2.3.tar.gz'
