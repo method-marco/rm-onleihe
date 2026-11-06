@@ -1,6 +1,6 @@
 maintainer="mr_marco <marco_meier2210@hotmail.com>"
 pkgname=onleihe
-pkgver=0.2.3
+pkgver=0.2.4
 pkgrel=0
 upstream_author="method-marco"
 category="apps"
@@ -63,5 +63,5 @@ postdeinstall() {
 	fi
 }
 
-sha512sums='88a4c3c577db9c5f9dda0600716f57234b215e79d1060aa1513f1496fb8940a5079fdeb595d64cdabfb9a02c0a47290fb2efddc6c58e4c84a359e13e52433bd6
-onleihe-0.2.3.tar.gz'
+sha512sums='ddf858e8ee80ad3d0c676c702a017cd0569ffd1bfb63dffd3337792a184a3fa9fdef1233ff651ff16c2c3fe10c9f19e7906cd53a5a6fd98c80108480df775a79
+onleihe-0.2.4.tar.gz'
