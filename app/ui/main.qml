@@ -12,9 +12,14 @@ Rectangle {
 
     // Required by AppLoad.
     signal close
+    // Called by AppLoad when the app closes (it may call it twice). Don't
+    // call backend.terminate() here: terminating from inside the unload
+    // makes AppLoad unload the frontend a second time, which crashes
+    // xochitl ("double free or corruption"). The backend keeps running and
+    // AppLoad reuses it when the app is opened again. Hiding the keyboard
+    // first keeps it from pointing at a destroyed text field.
     function unloading() {
-        // Keep the backend alive only while the app is open.
-        backend.terminate()
+        Qt.inputMethod.hide()
     }
 
     // ---- protocol (must match backend/main.go) ----
